@@ -1,3 +1,6 @@
+//! Async file watches for tokio using iNotify
+//!
+
 extern crate nix;
 extern crate thiserror;
 extern crate tokio;

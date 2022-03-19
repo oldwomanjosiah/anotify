@@ -205,11 +205,7 @@ impl Watches {
         for event in events.into_iter() {
             eprintln!("Got Event");
             let flags = event.mask;
-            let path = event
-                .name
-                .map(OsString::into_string)
-                .map(Result::ok)
-                .flatten();
+            let path = event.name.map(OsString::into_string).and_then(Result::ok);
 
             if let Some(watch) = self.watches.get_mut(&event.wd) {
                 eprintln!(

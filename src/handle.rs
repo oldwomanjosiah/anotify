@@ -114,6 +114,9 @@ impl Handle {
         &mut self,
         path: PathBuf,
     ) -> Result<WatchRequest<'_, DirectoryEvents>, RequestError> {
+        // TODO(josiah) make take Into<Path>
+        // TODO(josiah) consider making this async, and complete when watch is fully initalized
+
         if !path.exists() {
             return Err(RequestError::DoesNotExist(path));
         }
@@ -155,6 +158,7 @@ impl WatchType for DirectoryEvents {
     const DEFAULT_BUFFER: usize = 32;
 }
 
+/// Configuration and dispatch for a watch
 pub struct WatchRequest<'handle, T: WatchType> {
     handle: &'handle mut Handle,
     path: PathBuf,
@@ -163,8 +167,11 @@ pub struct WatchRequest<'handle, T: WatchType> {
     _type: PhantomData<T>,
 }
 
+/// # Common Configuration Methods
 impl<T: WatchType> WatchRequest<'_, T> {
-    /// Set the amount of items for this watch to buffer
+    /// Set the amount of items for this watch to buffer,
+    ///
+    /// value is not considered for single event watches
     pub fn buffer(mut self, size: usize) -> Self {
         self.buffer = size;
         self
@@ -198,10 +205,11 @@ impl<T: WatchType> WatchRequest<'_, T> {
     // coalesced correctly
 }
 
+/// # File Specific Dispatch Methods
 impl<'handle> WatchRequest<'handle, FileEvents> {
     /// Create a watch which will only return the next captured event, and then unsubscribe
     ///
-    /// Ignores the value set by [`buffer`]
+    /// Ignores the value set by [`buffer`][`WatchRequest::buffer`]
     pub fn next(self) -> Result<FileWatchFuture, WatchError> {
         let (sender, rx) = tokio::sync::oneshot::channel();
 
@@ -222,7 +230,7 @@ impl<'handle> WatchRequest<'handle, FileEvents> {
 
     /// Create a watch which will capture and return a stream of events until dropped.
     ///
-    /// Will keep oldest events on buffer overflow set by [`buffer`]
+    /// Will keep oldest events on buffer overflow set by [`buffer`][`WatchRequest::buffer`]
     pub fn watch(self) -> Result<FileWatchStream, WatchError> {
         let (sender, rx) = tokio::sync::mpsc::channel(self.buffer);
 
@@ -242,10 +250,11 @@ impl<'handle> WatchRequest<'handle, FileEvents> {
     }
 }
 
+/// # Directory Specific Dispatch Methods
 impl<'handle> WatchRequest<'handle, DirectoryEvents> {
     /// Create a watch which will only return the next captured event, and then unsubscribe
     ///
-    /// Ignores the value set by [`buffer`]
+    /// Ignores the value set by [`buffer`][`WatchRequest::buffer`]
     pub fn next(self) -> Result<DirectoryWatchFuture, WatchError> {
         let (sender, rx) = tokio::sync::oneshot::channel();
 
@@ -266,7 +275,7 @@ impl<'handle> WatchRequest<'handle, DirectoryEvents> {
 
     /// Create a watch which will capture and return a stream of events until dropped.
     ///
-    /// Will keep oldest events on buffer overflow set by [`buffer`]
+    /// Will keep oldest events on buffer overflow set by [`buffer`][`WatchRequest::buffer`]
     pub fn watch(self) -> Result<DirectoryWatchStream, WatchError> {
         let (sender, rx) = tokio::sync::mpsc::channel(self.buffer);
 
