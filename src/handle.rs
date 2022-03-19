@@ -98,12 +98,10 @@ impl Handle {
             return Err(RequestError::IncorrectType(path));
         }
 
-        let buffer = FileEvents::DEFAULT_BUFFER;
-
         Ok(WatchRequest {
             handle: self,
             path,
-            buffer,
+            buffer: FileEvents::DEFAULT_BUFFER,
             flags: AddWatchFlags::empty(),
             _type: Default::default(),
         })
@@ -124,12 +122,10 @@ impl Handle {
             return Err(RequestError::IncorrectType(path));
         }
 
-        let buffer = DirectoryEvents::DEFAULT_BUFFER;
-
         Ok(WatchRequest {
             handle: self,
             path,
-            buffer,
+            buffer: DirectoryEvents::DEFAULT_BUFFER,
             flags: AddWatchFlags::empty(),
             _type: Default::default(),
         })
@@ -210,10 +206,12 @@ impl<'handle> WatchRequest<'handle, FileEvents> {
     /// Create a watch which will only return the next captured event, and then unsubscribe
     ///
     /// Ignores the value set by [`buffer`][`WatchRequest::buffer`]
-    pub fn next(self) -> Result<FileWatchFuture, WatchError> {
+    pub async fn next(self) -> Result<FileWatchFuture, WatchError> {
         let (sender, rx) = tokio::sync::oneshot::channel();
 
         let sender = crate::task::Sender::Once(sender);
+
+        let (setup_tx, setup_rx) = tokio::sync::oneshot::channel();
 
         self.handle
             .request_tx
@@ -222,19 +220,29 @@ impl<'handle> WatchRequest<'handle, FileEvents> {
                 path: self.path,
                 dir: false,
                 sender,
+                watch_token_tx: setup_tx,
             })
             .map_err(|_| WatchError::WatcherShutdown)?;
 
-        Ok(FileWatchFuture(rx))
+        let watch_token = setup_rx.await.map_err(|_| WatchError::WatcherShutdown)?;
+
+        Ok(FileWatchFuture {
+            inner: rx,
+            watch_token,
+            closed: false,
+            handle: self.handle.clone(),
+        })
     }
 
     /// Create a watch which will capture and return a stream of events until dropped.
     ///
     /// Will keep oldest events on buffer overflow set by [`buffer`][`WatchRequest::buffer`]
-    pub fn watch(self) -> Result<FileWatchStream, WatchError> {
+    pub async fn watch(self) -> Result<FileWatchStream, WatchError> {
         let (sender, rx) = tokio::sync::mpsc::channel(self.buffer);
 
         let sender = crate::task::Sender::Stream(sender);
+
+        let (setup_tx, setup_rx) = tokio::sync::oneshot::channel();
 
         self.handle
             .request_tx
@@ -243,10 +251,17 @@ impl<'handle> WatchRequest<'handle, FileEvents> {
                 path: self.path,
                 dir: false,
                 sender,
+                watch_token_tx: setup_tx,
             })
             .map_err(|_| WatchError::WatcherShutdown)?;
 
-        Ok(FileWatchStream(ReceiverStream::from(rx)))
+        let watch_token = setup_rx.await.map_err(|_| WatchError::WatcherShutdown)?;
+
+        Ok(FileWatchStream {
+            inner: ReceiverStream::from(rx),
+            watch_token,
+            handle: self.handle.clone(),
+        })
     }
 }
 
@@ -255,10 +270,12 @@ impl<'handle> WatchRequest<'handle, DirectoryEvents> {
     /// Create a watch which will only return the next captured event, and then unsubscribe
     ///
     /// Ignores the value set by [`buffer`][`WatchRequest::buffer`]
-    pub fn next(self) -> Result<DirectoryWatchFuture, WatchError> {
+    pub async fn next(self) -> Result<DirectoryWatchFuture, WatchError> {
         let (sender, rx) = tokio::sync::oneshot::channel();
 
         let sender = crate::task::Sender::Once(sender);
+
+        let (setup_tx, setup_rx) = tokio::sync::oneshot::channel();
 
         self.handle
             .request_tx
@@ -267,19 +284,29 @@ impl<'handle> WatchRequest<'handle, DirectoryEvents> {
                 path: self.path,
                 dir: true,
                 sender,
+                watch_token_tx: setup_tx,
             })
             .map_err(|_| WatchError::WatcherShutdown)?;
 
-        Ok(DirectoryWatchFuture(rx))
+        let watch_token = setup_rx.await.map_err(|_| WatchError::WatcherShutdown)?;
+
+        Ok(DirectoryWatchFuture {
+            inner: rx,
+            watch_token,
+            handle: self.handle.clone(),
+            closed: false,
+        })
     }
 
     /// Create a watch which will capture and return a stream of events until dropped.
     ///
     /// Will keep oldest events on buffer overflow set by [`buffer`][`WatchRequest::buffer`]
-    pub fn watch(self) -> Result<DirectoryWatchStream, WatchError> {
+    pub async fn watch(self) -> Result<DirectoryWatchStream, WatchError> {
         let (sender, rx) = tokio::sync::mpsc::channel(self.buffer);
 
         let sender = crate::task::Sender::Stream(sender);
+
+        let (setup_tx, setup_rx) = tokio::sync::oneshot::channel();
 
         self.handle
             .request_tx
@@ -288,9 +315,16 @@ impl<'handle> WatchRequest<'handle, DirectoryEvents> {
                 path: self.path,
                 dir: true,
                 sender,
+                watch_token_tx: setup_tx,
             })
             .map_err(|_| WatchError::WatcherShutdown)?;
 
-        Ok(DirectoryWatchStream(ReceiverStream::from(rx)))
+        let watch_token = setup_rx.await.map_err(|_| WatchError::WatcherShutdown)?;
+
+        Ok(DirectoryWatchStream {
+            inner: ReceiverStream::from(rx),
+            watch_token,
+            handle: self.handle.clone(),
+        })
     }
 }

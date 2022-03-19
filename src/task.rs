@@ -26,6 +26,7 @@ pub(crate) enum WatchRequestInner {
         flags: AddWatchFlags,
         dir: bool,
         sender: Sender,
+        watch_token_tx: OnceSend<WatchDescriptor>,
     },
 
     /// A watcher was dropped, so we should scan for it and remove it
@@ -287,6 +288,7 @@ impl Watches {
                 flags,
                 dir,
                 sender,
+                watch_token_tx,
             } => {
                 let watch = SingleWatch {
                     flags,
@@ -298,6 +300,8 @@ impl Watches {
                 if let Some(wd) = self.paths.get(&path) {
                     let state = self.watches.get_mut(wd).unwrap();
                     state.watchers.push(watch);
+
+                    watch_token_tx.send(*wd);
                 } else {
                     let wd = inotify.add_watch(&path, flags)?;
                     let state = WatchState {
@@ -307,6 +311,8 @@ impl Watches {
 
                     self.paths.insert(path, wd);
                     self.watches.insert(wd, state);
+
+                    watch_token_tx.send(wd);
                 }
             }
         };

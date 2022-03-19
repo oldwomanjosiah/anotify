@@ -4,9 +4,11 @@ use std::{
     pin::Pin,
 };
 
-use nix::sys::inotify::AddWatchFlags;
+use nix::sys::inotify::{AddWatchFlags, WatchDescriptor};
 use tokio::sync::oneshot::Receiver as OnceRecv;
 use tokio_stream::{wrappers::ReceiverStream, Stream};
+
+use crate::handle::Handle;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FileWatchEvent {
@@ -71,10 +73,28 @@ impl Display for DirectoryWatchEvent {
 }
 
 /// Single Event File Watch
-pub struct FileWatchFuture(pub(crate) OnceRecv<DirectoryWatchEvent>);
-pub struct FileWatchStream(pub(crate) ReceiverStream<DirectoryWatchEvent>);
-pub struct DirectoryWatchFuture(pub(crate) OnceRecv<DirectoryWatchEvent>);
-pub struct DirectoryWatchStream(pub(crate) ReceiverStream<DirectoryWatchEvent>);
+pub struct FileWatchFuture {
+    pub(crate) inner: OnceRecv<DirectoryWatchEvent>,
+    pub(crate) watch_token: WatchDescriptor,
+    pub(crate) handle: Handle,
+    pub(crate) closed: bool,
+}
+pub struct FileWatchStream {
+    pub(crate) inner: ReceiverStream<DirectoryWatchEvent>,
+    pub(crate) watch_token: WatchDescriptor,
+    pub(crate) handle: Handle,
+}
+pub struct DirectoryWatchFuture {
+    pub(crate) inner: OnceRecv<DirectoryWatchEvent>,
+    pub(crate) watch_token: WatchDescriptor,
+    pub(crate) handle: Handle,
+    pub(crate) closed: bool,
+}
+pub struct DirectoryWatchStream {
+    pub(crate) inner: ReceiverStream<DirectoryWatchEvent>,
+    pub(crate) watch_token: WatchDescriptor,
+    pub(crate) handle: Handle,
+}
 
 impl Future for FileWatchFuture {
     type Output = Option<FileWatchEvent>;
@@ -83,7 +103,7 @@ impl Future for FileWatchFuture {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
-        Pin::new(&mut self.0)
+        Pin::new(&mut self.inner)
             .poll(cx)
             .map(|it| it.ok().map(|event| event.event))
     }
@@ -96,7 +116,7 @@ impl Future for DirectoryWatchFuture {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
-        Pin::new(&mut self.0).poll(cx).map(|it| it.ok())
+        Pin::new(&mut self.inner).poll(cx).map(|it| it.ok())
     }
 }
 
@@ -107,7 +127,7 @@ impl Stream for FileWatchStream {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        Pin::new(&mut self.0)
+        Pin::new(&mut self.inner)
             .poll_next(cx)
             .map(|it| it.map(|event| event.event))
     }
@@ -121,6 +141,6 @@ impl Stream for DirectoryWatchStream {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        Pin::new(&mut self.0).poll_next(cx)
+        Pin::new(&mut self.inner).poll_next(cx)
     }
 }

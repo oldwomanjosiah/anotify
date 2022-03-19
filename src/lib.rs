@@ -87,9 +87,17 @@ mod test {
         let file_path = test_dir.path().join("test.txt");
         let mut file = TestFile::new(file_path.clone());
 
-        let fut = timeout(owner.file(file_path).unwrap().modify(true).next().unwrap());
+        let fut = timeout(
+            owner
+                .file(file_path)
+                .unwrap()
+                .modify(true)
+                .next()
+                .await
+                .unwrap(),
+        );
 
-        wait().await;
+        // wait().await;
 
         file.change();
 
@@ -114,12 +122,17 @@ mod test {
         let file_path = test_dir.path().join("test.txt");
         let file = TestFile::new(file_path.clone());
 
-        let mut stream = owner.file(file_path).unwrap().modify(true).watch().unwrap();
+        let mut stream = owner
+            .file(file_path)
+            .unwrap()
+            .modify(true)
+            .watch()
+            .await
+            .unwrap();
 
         tokio::spawn(async move {
             let mut file = file;
 
-            wait().await;
             file.change();
             wait().await;
             file.change();
@@ -154,9 +167,10 @@ mod test {
             .unwrap()
             .modify(true)
             .watch()
+            .await
             .unwrap();
 
-        wait().await;
+        // wait().await;
 
         tokio::spawn(async move {
             f1.change();
