@@ -6,14 +6,15 @@ extern crate thiserror;
 extern crate tokio;
 extern crate tokio_stream;
 
+use error::InitError;
 use handle::{Handle, OwnedHandle};
-use task::InitError;
 
 pub mod futures;
 pub mod handle;
 mod task;
 #[macro_use]
 mod tracing;
+pub mod error;
 
 // TODO(josiah) convert this to a builder style to allow for request buffer configurations, as well
 // as max watchers

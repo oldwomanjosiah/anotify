@@ -113,7 +113,6 @@ impl Handle {
         path: PathBuf,
     ) -> Result<WatchRequest<'_, DirectoryEvents>, RequestError> {
         // TODO(josiah) make take Into<Path>
-        // TODO(josiah) consider making this async, and complete when watch is fully initalized
 
         if !path.exists() {
             return Err(RequestError::DoesNotExist(path));

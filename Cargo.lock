@@ -7,6 +7,8 @@ name = "anotify"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cfg-if",
+ "displaydoc",
  "nix",
  "tempdir",
  "thiserror",
@@ -44,6 +46,17 @@ name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+
+[[package]]
+name = "displaydoc"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3bf95dc3f046b9da4f2d51833c0d3547d8564ef6910f5c1ed130306a75b92886"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "fuchsia-cprng"

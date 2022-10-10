@@ -1,5 +1,6 @@
 use std::{collections::HashMap, ffi::OsString, path::PathBuf, time::Duration};
 
+use displaydoc::Display;
 use nix::{
     errno::Errno,
     sys::inotify::{AddWatchFlags, InitFlags, Inotify, WatchDescriptor},
@@ -17,7 +18,7 @@ use tokio::{
     time::{interval, Interval},
 };
 
-use crate::futures::DirectoryWatchEvent;
+use crate::{error::InitError, futures::DirectoryWatchEvent, trace};
 
 #[derive(Debug)]
 pub(crate) enum WatchRequestInner {
@@ -41,15 +42,6 @@ pub struct WatcherState {
     shutdown: OnceRecv<()>,
     clean_interval: Option<Interval>,
     watches: Watches,
-}
-
-#[derive(Debug, Error)]
-pub enum InitError {
-    #[error("Could not initalize inotify instance")]
-    Inotify(#[from] nix::errno::Errno),
-
-    #[error("Could not register inotify with tokio")]
-    AsyncFd(#[from] std::io::Error),
 }
 
 impl WatcherState {
@@ -77,20 +69,19 @@ impl WatcherState {
     }
 
     pub fn launch(self: Box<Self>) -> JoinHandle<()> {
-        #[cfg(all(tokio_unstable, feature = "tracing"))]
-        {
-            tokio::task::Builder::new()
-                .name("Inotify Watcher")
-                .spawn(self.run())
-        }
-        #[cfg(not(all(tokio_unstable, feature = "tracing")))]
-        {
-            tokio::spawn(self.run())
+        cfg_if::cfg_if! {
+            if #[cfg(all(tokio_unstable, feature = "tracing"))] {
+                tokio::task::Builder::new()
+                    .name("Inotify Watcher")
+                    .spawn(self.run())
+            } else {
+                tokio::spawn(self.run())
+            }
         }
     }
 
     async fn step(&mut self) -> Result<bool, Box<dyn std::error::Error>> {
-        async fn maybe(interval: &mut Option<Interval>) {
+        async fn clean_wait(interval: &mut Option<Interval>) {
             match interval {
                 Some(interval) => interval.tick().await,
                 None => std::future::pending().await,
@@ -132,7 +123,7 @@ impl WatcherState {
                 }
             }
 
-            _ = maybe(&mut self.clean_interval), if self.watches.dirty => {
+            _ = clean_wait(&mut self.clean_interval), if self.watches.dirty => {
                 crate::error!("WOKE UP FOR CLEAN");
 
                 // TODO(josiah) this needs to find the watches that can be narrowed or removed
@@ -197,26 +188,26 @@ impl Watches {
         &mut self,
         mut guard: AsyncFdReadyGuard<'_, Inotify>,
     ) -> Result<(), Errno> {
-        eprintln!("Processing Events from Watches");
+        trace!("Processing Events from Watches");
 
         // This should be infallable because we set the FD to non-blocking
         //   and we were woken by the executor with readable
         let events = guard.get_inner().read_events()?;
 
         for event in events.into_iter() {
-            eprintln!("Got Event");
+            trace!("Got Event");
             let flags = event.mask;
             let path = event.name.map(OsString::into_string).and_then(Result::ok);
 
             if let Some(watch) = self.watches.get_mut(&event.wd) {
-                eprintln!(
+                trace!(
                     "Got event for path: {} with flags {flags:4X}",
                     watch.path.display()
                 );
 
                 let event = flags.try_into();
                 if event.is_err() {
-                    eprintln!("Got unexpected Flags: 0x{flags:8X}");
+                    trace!("Got unexpected Flags: 0x{flags:8X}");
                     continue;
                 }
 

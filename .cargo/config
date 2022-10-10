@@ -1,0 +1,2 @@
+[build]
+buildflags = ["-cfg", "tokio_unstable"]
