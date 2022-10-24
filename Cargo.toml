@@ -1,10 +1,10 @@
 [package]
 name = "anotify"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 authors = [ "oldwomanjosiah <jhilden13@gmail.com>" ]
 description = "Async iNotify Filesystem Watcher"
-repository = "https://github.com/oldwomanjosiah/anoitfy"
+repository = "https://github.com/oldwomanjosiah/anotify"
 readme = "readme.md"
 license = "MIT"
 keywords = [ "linux", "inotify", "async", "watch" ]
