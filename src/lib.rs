@@ -18,6 +18,8 @@ pub mod error;
 
 mod request;
 
+pub mod new;
+
 // TODO(josiah) convert this to a builder style to allow for request buffer configurations, as well
 // as max watchers
 pub fn new() -> Result<OwnedHandle, InitError> {
