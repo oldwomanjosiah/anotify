@@ -2,6 +2,10 @@ use std::path::{Path, PathBuf};
 
 use enumflags2::BitFlags;
 
+use self::error::Result;
+
+pub mod error;
+
 pub enum EventType {
     Read,
     Write,
@@ -36,60 +40,6 @@ pub enum EventFilterType {
 }
 
 pub type EventFilter = BitFlags<EventFilterType>;
-
-#[derive(Debug)]
-pub enum AnotifyErrorType {
-    DoesNotExist,
-    ExpectedDir,
-    ExpectedFile,
-    FileRemoved,
-    SystemResourceLimit,
-    NoPermission,
-    InvalidFilePath,
-    Unknown {
-        source: Box<dyn std::error::Error + Send + Sync + 'static>,
-    },
-}
-
-#[derive(Debug)]
-pub struct AnotifyError {
-    pub(crate) message: Option<String>,
-    // backtrace: Option<Backtrace>,
-    pub(crate) path: Option<PathBuf>,
-    pub(crate) ty: AnotifyErrorType,
-}
-
-impl AnotifyError {
-    pub(crate) fn new(ty: AnotifyErrorType) -> Self {
-        Self {
-            message: None,
-            path: None,
-            ty,
-        }
-    }
-
-    pub(crate) fn attach_path(&mut self, path: impl Into<PathBuf>) -> &mut Self {
-        self.path.replace(path.into());
-        self
-    }
-
-    pub(crate) fn with_path(mut self, path: impl Into<PathBuf>) -> Self {
-        self.path.replace(path.into());
-        self
-    }
-
-    pub(crate) fn attach_message(&mut self, message: impl Into<String>) -> &mut Self {
-        self.message.replace(message.into());
-        self
-    }
-
-    pub(crate) fn with_message(mut self, message: impl Into<String>) -> Self {
-        self.message.replace(message.into());
-        self
-    }
-}
-
-pub type Result<T, E = AnotifyError> = core::result::Result<T, E>;
 
 struct AnotifyFuture {}
 

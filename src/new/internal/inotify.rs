@@ -9,7 +9,7 @@ use nix::sys::inotify::Inotify;
 use tokio::io::{unix::AsyncFd, Interest};
 
 use crate::new::{
-    external::{AnotifyError, AnotifyErrorType, Result},
+    external::error::{AnotifyError, AnotifyErrorType, Result},
     EventFilter,
 };
 

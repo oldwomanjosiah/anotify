@@ -1,10 +1,7 @@
 use tracing_impl::Instrument;
 
-use crate::new::Result;
-use std::sync::{
-    atomic::{AtomicBool, AtomicUsize},
-    Arc,
-};
+use crate::new::error::Result;
+use std::sync::{atomic::AtomicUsize, Arc};
 
 mod binding;
 mod inotify;
