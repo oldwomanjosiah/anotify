@@ -17,6 +17,7 @@ pub enum AnotifyErrorType {
     SystemResourceLimit,
     NoPermission,
     InvalidFilePath,
+    Closed,
     Unknown {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
@@ -114,6 +115,7 @@ impl std::fmt::Display for AnotifyErrorType {
             }
             AnotifyErrorType::NoPermission => write!(f, "No Permission For Action"),
             AnotifyErrorType::InvalidFilePath => write!(f, "Invalid or Non-Existant Path"),
+            AnotifyErrorType::Closed => write!(f, "Anotify Instance was Closed"),
             AnotifyErrorType::Unknown { source } => write!(f, "Unknown({source})"),
         }
     }

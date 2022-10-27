@@ -12,24 +12,7 @@ use super::{
     Id,
 };
 
-mod bridge {
-    use crate::new::{external::Event, internal::Id, EventFilter};
-    use std::path::PathBuf;
-    use tokio::sync::mpsc::{Receiver, Sender};
-
-    pub type CollectorTx = Sender<Event>;
-    pub type CollectorRx = Receiver<Event>;
-
-    pub struct CollectorRequest {
-        pub id: Id,
-        pub path: PathBuf,
-        pub once: bool,
-        pub sender: CollectorTx,
-        pub filter: EventFilter,
-    }
-}
-
-use bridge::*;
+use super::bridge::*;
 
 /// Represents a single collector (single event, or stream), which has registered interest in some
 /// file or directory.
@@ -65,6 +48,12 @@ impl<I> Registry<I> {
             watches: HashMap::new(),
             move_cache: HashMap::new(),
         }
+    }
+
+    /// There are no registered interests in the registry.
+    /// No observable effect from dropping.
+    pub fn empty(&self) -> bool {
+        self.collectors.is_empty()
     }
 
     fn collector(&self, id: Id) -> Option<&Collector<I>> {

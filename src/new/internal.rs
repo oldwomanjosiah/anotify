@@ -1,14 +1,44 @@
-use tracing_impl::Instrument;
+use tracing_impl::{callsite::Identifier, Instrument};
 
 use crate::new::error::Result;
 use std::{
     collections::HashMap,
+    fmt::Debug,
+    hash::Hash,
+    path::PathBuf,
     sync::{atomic::AtomicUsize, Arc},
 };
+
+use super::EventFilter;
 
 mod binding;
 mod inotify;
 mod registry;
+
+mod bridge {
+    use crate::new::{external::Event, internal::Id, EventFilter};
+    use std::path::PathBuf;
+    use tokio::sync::mpsc::{Receiver, Sender};
+
+    pub type CollectorTx = Sender<Event>;
+    pub type CollectorRx = Receiver<Event>;
+
+    pub type RequestTx = Sender<Request>;
+    pub type RequestRx = Receiver<Request>;
+
+    pub struct CollectorRequest {
+        pub id: Id,
+        pub path: PathBuf,
+        pub once: bool,
+        pub sender: CollectorTx,
+        pub filter: EventFilter,
+    }
+
+    pub enum Request {
+        Create(CollectorRequest),
+        Drop(Id),
+    }
+}
 
 pub type Platform = inotify::InotifyBinding;
 
@@ -19,47 +49,93 @@ pub struct Id(usize);
 
 pub(crate) struct SharedState {
     next_id: AtomicUsize,
+    channel_size: usize,
+    requests: bridge::RequestTx,
 }
 
 impl SharedState {
+    const DEFAULT_CAPACITY: usize = 32;
+
+    pub fn new() -> (Arc<Self>, bridge::RequestRx) {
+        Self::with_capacity(Self::DEFAULT_CAPACITY)
+    }
+
+    pub fn with_capacity(channel_size: usize) -> (Arc<Self>, bridge::RequestRx) {
+        let (requests, rx) = tokio::sync::mpsc::channel(channel_size);
+
+        let shared = Self {
+            next_id: 0.into(),
+            channel_size,
+            requests,
+        };
+
+        (Arc::new(shared), rx)
+    }
+
     pub fn next_id(&self) -> Id {
         use std::sync::atomic::Ordering;
 
         Id(self.next_id.fetch_add(1, Ordering::Relaxed))
     }
+
+    pub async fn request(
+        &self,
+        once: bool,
+        path: PathBuf,
+        filter: EventFilter,
+    ) -> Option<(Id, bridge::CollectorRx)> {
+        let (sender, rx) = tokio::sync::mpsc::channel(self.channel_size);
+        let id = self.next_id();
+
+        let req = bridge::CollectorRequest {
+            id,
+            path,
+            once,
+            sender,
+            filter,
+        };
+
+        if self
+            .requests
+            .send(bridge::Request::Create(req))
+            .await
+            .is_ok()
+        {
+            Some((id, rx))
+        } else {
+            None
+        }
+    }
 }
 
 type Shared = Arc<SharedState>;
 
-impl SharedState {
-    fn new() -> Arc<Self> {
-        let inner = SharedState { next_id: 0.into() };
-
-        Arc::new(inner)
-    }
-}
-
-struct TaskState<B> {
+struct TaskState<B, I> {
     root_span: tracing_impl::Span,
     shared: Shared,
+    requests: bridge::RequestRx,
+    registry: registry::Registry<I>,
     binding: B,
 }
 
-impl<B> TaskState<B> {
-    fn new() -> Result<TaskState<Platform>> {
-        TaskState::new_with(Platform::new()?)
+impl<B, I> TaskState<B, I> {
+    fn new(
+        shared: Shared,
+        requests: bridge::RequestRx,
+    ) -> Result<TaskState<Platform, <Platform as binding::Binding>::Identifier>> {
+        TaskState::new_with(shared, requests, Platform::new()?)
     }
 
-    fn new_with(binding: B) -> Result<Self> {
+    fn new_with(shared: Shared, requests: bridge::RequestRx, binding: B) -> Result<Self> {
         let root_span = tracing_impl::info_span!("anotify_task");
-
-        let shared = SharedState::new();
 
         root_span.in_scope(|| tracing_impl::info!("Created"));
 
         Ok(Self {
             root_span,
             binding,
+            requests,
+            registry: registry::Registry::new(),
             shared,
         })
     }
@@ -67,11 +143,15 @@ impl<B> TaskState<B> {
     fn get_shared(&self) -> Shared {
         self.shared.clone()
     }
+}
 
-    fn launch_in(self, runtime: tokio::runtime::Handle) -> tokio::task::JoinHandle<()>
-    where
-        B: binding::Binding + Send + 'static,
-    {
+impl<B, I> TaskState<B, I>
+where
+    B: binding::Binding<Identifier = I> + Send + 'static,
+    I: Copy + Eq + Hash + Debug,
+    I: Send + 'static,
+{
+    fn launch_in(self, runtime: tokio::runtime::Handle) -> tokio::task::JoinHandle<()> {
         let _guard = runtime.enter();
 
         let span = self.root_span.clone();
@@ -83,13 +163,94 @@ impl<B> TaskState<B> {
             .instrument(span),
         )
     }
+}
 
-    async fn worker(self)
+impl<B, I> TaskState<B, I>
+where
+    B: binding::Binding<Identifier = I>,
+    I: Copy + Eq + Hash + Debug,
+{
+    fn deregister_all(&mut self, idents: Vec<Id>) -> crate::new::error::Result<()> {
+        for id in idents.into_iter() {
+            self.registry.deregister_interest(&mut self.binding, id)?;
+        }
+
+        Ok(())
+    }
+
+    fn handle_request(&mut self, request: bridge::Request) -> crate::new::error::Result<()> {
+        match request {
+            bridge::Request::Create(request) => {
+                self.registry
+                    .register_interest(&mut self.binding, request)?;
+            }
+
+            bridge::Request::Drop(id) => {
+                self.registry.deregister_interest(&mut self.binding, id)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn handle_events(
+        &mut self,
+        events: Vec<binding::BindingEvent<I>>,
+    ) -> crate::new::error::Result<()> {
+        let to_remove = self.registry.try_send_events(events)?;
+
+        for id in to_remove.into_iter() {
+            self.registry.deregister_interest(&mut self.binding, id)?;
+        }
+
+        Ok(())
+    }
+
+    async fn worker(mut self)
     where
-        B: binding::Binding,
+        B: binding::Binding<Identifier = I>,
     {
+        use std::future::poll_fn;
+
         tracing_impl::info!("Starting");
-        todo!();
+
+        let mut requests_closed: bool = false;
+
+        loop {
+            if requests_closed && self.registry.empty() {
+                tracing_impl::info!("Requests Closed, Registry Empty");
+                break;
+            }
+
+            tokio::select! {
+                req = self.requests.recv(), if !requests_closed => {
+                    let Some(req) = req else {
+                        tracing_impl::info!("Requests channel was closed");
+                        requests_closed = true;
+                        continue;
+                    };
+
+                    if let Err(e) = self.handle_request(req) {
+                        // TODO Should these be fatal?
+                        tracing_impl::error!("While Handling Request:\n{e}");
+                    }
+                },
+                events = poll_fn(|cx| self.binding.poll_events(cx)) => {
+                    match events {
+                        Ok(events) => if let Err(e) = self.handle_events(events) {
+                            // TODO Should these be fatal?
+                            tracing_impl::error!("While handling Events:\n{e}");
+                        }
+                        Err(e) => {
+                            // TODO Should these be fatal?
+                            tracing_impl::error!("While getting Events:\n{e}");
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         tracing_impl::info!("Exiting");
     }
 }
