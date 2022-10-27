@@ -235,7 +235,7 @@ where
                         tracing_impl::error!("While Handling Request:\n{e}");
                     }
                 },
-                events = poll_fn(|cx| self.binding.poll_events(cx)) => {
+                events = self.binding.events() => {
                     match events {
                         Ok(events) => if let Err(e) = self.handle_events(events) {
                             // TODO Should these be fatal?
