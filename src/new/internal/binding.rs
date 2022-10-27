@@ -26,8 +26,9 @@ impl BindingEventType {
     }
 }
 
-pub struct BindingEvent<B: Binding> {
-    pub wd: B::Identifier,
+#[derive(Debug)]
+pub struct BindingEvent<I> {
+    pub wd: I,
     pub path: Option<PathBuf>,
     pub ty: Vec<BindingEventType>,
 }
@@ -56,7 +57,7 @@ pub trait Binding {
     fn poll_events(
         &mut self,
         cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<std::io::Result<Vec<BindingEvent<Self>>>>
+    ) -> std::task::Poll<std::io::Result<Vec<BindingEvent<Self::Identifier>>>>
     where
         Self: Sized;
 }

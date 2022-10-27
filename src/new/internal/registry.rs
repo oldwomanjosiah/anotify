@@ -4,9 +4,13 @@ use std::{
     path::PathBuf,
 };
 
-use crate::new::EventFilter;
+use crate::new::{EventFilter, EventType};
 
-use super::{binding::Binding, Id};
+use super::{
+    super::Event,
+    binding::{Binding, BindingEvent, BindingEventType},
+    Id,
+};
 
 mod bridge {
     use crate::new::{external::Event, internal::Id, EventFilter};
@@ -50,6 +54,7 @@ struct Watch {
 pub struct Registry<I> {
     collectors: HashMap<Id, Collector<I>>,
     watches: HashMap<I, Watch>,
+    move_cache: HashMap<u32, PathBuf>,
     // TODO(josiah) consider adding map from path to I for new inserts
 }
 
@@ -58,11 +63,31 @@ impl<I> Registry<I> {
         Self {
             collectors: HashMap::new(),
             watches: HashMap::new(),
+            move_cache: HashMap::new(),
         }
     }
 
     fn collector(&self, id: Id) -> Option<&Collector<I>> {
         self.collectors.get(&id)
+    }
+
+    fn cache_or_take(&mut self, cookie: u32, from: bool, path: PathBuf) -> Option<Event> {
+        if let Some(other) = self.move_cache.remove(&cookie) {
+            if from {
+                Some(Event {
+                    path: path,
+                    ty: EventType::Move { to: Some(other) },
+                })
+            } else {
+                Some(Event {
+                    path: other,
+                    ty: EventType::Move { to: Some(path) },
+                })
+            }
+        } else {
+            self.move_cache.insert(cookie, path);
+            None
+        }
     }
 }
 
@@ -148,23 +173,102 @@ impl<I: Eq + Hash + Copy + std::fmt::Debug> Registry<I> {
         Ok(())
     }
 
-    pub fn try_send_events<B>(
-        &self,
-        events: Vec<super::binding::BindingEvent<B>>,
-    ) -> crate::new::error::Result<()>
-    where
-        B: Binding<Identifier = I>,
-    {
+    /// Convert binding events into user events.
+    fn convert_event(&mut self, wd: I, event: BindingEvent<I>) -> Vec<Event> {
+        let BindingEvent {
+            wd: _,
+            path,
+            ty: tys,
+        } = event;
+
+        let Some(path) = path.or_else(|| {
+            self.watches.get(&wd).map(|it| it.path.clone())
+        }) else {
+            return Vec::new();
+        };
+
+        tys.into_iter()
+            .filter_map(|ty| {
+                let path = path.clone();
+
+                let ty = match ty {
+                    BindingEventType::Open => EventType::Open,
+                    BindingEventType::CloseNoModify => EventType::Close { modified: false },
+                    BindingEventType::CloseModify => EventType::Close { modified: true },
+                    BindingEventType::Read => EventType::Read,
+                    BindingEventType::Write => EventType::Write,
+                    BindingEventType::Metadata => EventType::Metadata,
+                    BindingEventType::Create => EventType::Create,
+                    BindingEventType::Delete => EventType::Delete,
+                    BindingEventType::SelfRemoved => EventType::Delete,
+
+                    BindingEventType::MoveFrom { cookie } => {
+                        return self.cache_or_take(cookie, true, path);
+                    }
+                    BindingEventType::MoveTo { cookie } => {
+                        return self.cache_or_take(cookie, false, path);
+                    }
+                };
+
+                Some(Event { path, ty })
+            })
+            .collect()
+    }
+
+    /// Try and send a set of events to their listening collectors.
+    ///
+    /// Returns a list of collectors who should be removed after these events have been sent.
+    pub fn try_send_events(
+        &mut self,
+        events: Vec<BindingEvent<I>>,
+    ) -> crate::new::error::Result<HashSet<Id>> {
+        let mut to_remove = HashSet::new();
+
         for event in events.into_iter() {
-            let Some(watch) = self.watches.get(&event.wd) else {
-                tracing_impl::info!(id = ?event.wd, "Watch was removed for id before event could be processed");
+            let wd = event.wd;
+            let events = self.convert_event(event.wd, event);
+
+            let Some(watch) = self.watches.get(&wd) else {
+                tracing_impl::info!(?wd, "Watch was removed for id before event could be processed");
                 continue;
             };
 
-            todo!()
+            'collectors: for id in watch.interested.iter() {
+                let Some(collector) = self.collectors.get(id) else {
+                    unreachable!("Collector with {id:?} was removed without removing it's interest from a watch {wd:?}");
+                };
+
+                for event in events.iter() {
+                    if event.contained_in(&collector.filter) {
+                        use tokio::sync::mpsc::error::TrySendError;
+
+                        match collector.sender.try_send(event.clone()) {
+                            Ok(()) => {}
+                            Err(TrySendError::Full(_)) => {
+                                tracing_impl::info!(?id, "Could not send event, sender full");
+                                continue 'collectors;
+                            }
+                            Err(TrySendError::Closed(_)) => {
+                                tracing_impl::trace!(?id, "Removing collector, sender closed");
+                                to_remove.insert(*id);
+                                continue 'collectors;
+                            }
+                        }
+
+                        if collector.once {
+                            tracing_impl::trace!(
+                                ?id,
+                                "Removing collector, requested only single event"
+                            );
+                            to_remove.insert(*id);
+                            continue 'collectors;
+                        }
+                    }
+                }
+            }
         }
 
-        Ok(())
+        Ok(to_remove)
     }
 }
 

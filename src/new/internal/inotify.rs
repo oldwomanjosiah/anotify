@@ -7,6 +7,7 @@ use std::{
 
 use nix::sys::inotify::Inotify;
 use tokio::io::{unix::AsyncFd, Interest};
+use tracing_impl::callsite::Identifier;
 
 use crate::new::{
     external::error::{AnotifyError, AnotifyErrorType, Result},
@@ -163,7 +164,9 @@ impl InotifyBinding {
         AnotifyError::new(ty).with_message("Could not perform iNotify action")
     }
 
-    fn convert_event(event: nix::sys::inotify::InotifyEvent) -> BindingEvent<Self> {
+    fn convert_event(
+        event: nix::sys::inotify::InotifyEvent,
+    ) -> BindingEvent<<Self as Binding>::Identifier> {
         BindingEvent {
             wd: WatchIdentifier(event.wd),
             path: event.name.map(|it| PathBuf::from(it)),
@@ -228,7 +231,7 @@ impl Binding for InotifyBinding {
     fn poll_events(
         &mut self,
         cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<std::io::Result<Vec<BindingEvent<Self>>>>
+    ) -> std::task::Poll<std::io::Result<Vec<BindingEvent<Self::Identifier>>>>
     where
         Self: Sized,
     {

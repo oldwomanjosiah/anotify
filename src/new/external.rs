@@ -6,20 +6,41 @@ use self::error::Result;
 
 pub mod error;
 
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub enum EventType {
     Read,
     Write,
     Open,
     Close { modified: bool },
     Move { to: Option<PathBuf> },
+    Create,
     Delete,
-    // TODO(josiah) should this contain the new metadata?
     Metadata,
 }
 
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub struct Event {
-    path: PathBuf,
-    ty: EventType,
+    pub path: PathBuf,
+    pub ty: EventType,
+}
+
+impl Event {
+    /// Checks if a given filter contains this event.
+    pub(crate) fn contained_in(&self, filter: &EventFilter) -> bool {
+        let as_filter = match &self.ty {
+            EventType::Read => EventFilterType::Read.into(),
+            EventType::Write => EventFilterType::Write.into(),
+            EventType::Open => EventFilterType::Open.into(),
+            EventType::Close { modified: true } => EventFilterType::CloseModify,
+            EventType::Close { modified: false } => EventFilterType::CloseNoModify,
+            EventType::Move { .. } => EventFilterType::Move,
+            EventType::Create => EventFilterType::Create,
+            EventType::Delete => EventFilterType::Delete,
+            EventType::Metadata => EventFilterType::Metadata,
+        };
+
+        filter.contains(as_filter)
+    }
 }
 
 #[repr(u16)]
