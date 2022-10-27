@@ -1,10 +1,14 @@
 use tracing_impl::Instrument;
 
 use crate::new::error::Result;
-use std::sync::{atomic::AtomicUsize, Arc};
+use std::{
+    collections::HashMap,
+    sync::{atomic::AtomicUsize, Arc},
+};
 
 mod binding;
 mod inotify;
+mod registry;
 
 pub type Platform = inotify::InotifyBinding;
 
