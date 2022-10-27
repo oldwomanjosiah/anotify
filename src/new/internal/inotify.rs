@@ -228,7 +228,10 @@ impl Binding for InotifyBinding {
     fn poll_events(
         &mut self,
         cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<std::io::Result<Vec<BindingEvent<Self>>>> {
+    ) -> std::task::Poll<std::io::Result<Vec<BindingEvent<Self>>>>
+    where
+        Self: Sized,
+    {
         use nix::Error;
         use std::task::{ready, Poll};
 

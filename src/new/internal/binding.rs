@@ -32,7 +32,7 @@ pub struct BindingEvent<B: Binding> {
     pub ty: Vec<BindingEventType>,
 }
 
-pub trait Binding: Sized {
+pub trait Binding {
     type Identifier: PartialEq + PartialOrd + Hash + Copy + 'static;
 
     /// Create a new watch
@@ -56,5 +56,7 @@ pub trait Binding: Sized {
     fn poll_events(
         &mut self,
         cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<std::io::Result<Vec<BindingEvent<Self>>>>;
+    ) -> std::task::Poll<std::io::Result<Vec<BindingEvent<Self>>>>
+    where
+        Self: Sized;
 }
