@@ -210,18 +210,11 @@ where
     where
         B: binding::Binding<Identifier = I>,
     {
-        use std::future::poll_fn;
-
         tracing_impl::info!("Starting");
 
         let mut requests_closed: bool = false;
 
         loop {
-            if requests_closed && self.registry.empty() {
-                tracing_impl::info!("Requests Closed, Registry Empty");
-                break;
-            }
-
             tokio::select! {
                 req = self.requests.recv(), if !requests_closed => {
                     let Some(req) = req else {
@@ -235,18 +228,21 @@ where
                         tracing_impl::error!("While Handling Request:\n{e}");
                     }
                 },
-                events = self.binding.events() => {
+                events = self.binding.events(), if !self.registry.empty() => {
                     match events {
                         Ok(events) => if let Err(e) = self.handle_events(events) {
                             // TODO Should these be fatal?
                             tracing_impl::error!("While handling Events:\n{e}");
                         }
                         Err(e) => {
-                            // TODO Should these be fatal?
                             tracing_impl::error!("While getting Events:\n{e}");
                             break;
                         }
                     }
+                },
+                else => {
+                    tracing_impl::info!("Requests Closed, Registry Empty");
+                    break;
                 }
             }
         }
