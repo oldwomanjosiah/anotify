@@ -21,7 +21,8 @@ pub enum BindingEventType {
 }
 
 impl BindingEventType {
-    fn should_remove_watch(&self) -> bool {
+    /// Watch is closing from this, consumers should be notified.
+    pub fn closing(&self) -> bool {
         matches!(self, BindingEventType::SelfRemoved)
     }
 }
@@ -31,6 +32,13 @@ pub struct BindingEvent<I> {
     pub wd: I,
     pub path: Option<PathBuf>,
     pub ty: Vec<BindingEventType>,
+}
+
+impl<I> BindingEvent<I> {
+    /// Watch is closing from this, consumers should be notified and watch removed from binding.
+    pub fn closing(&self) -> bool {
+        self.ty.iter().any(BindingEventType::closing)
+    }
 }
 
 pub trait Binding {

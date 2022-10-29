@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 #[derive(Debug)]
 pub struct AnotifyError {
@@ -8,7 +8,7 @@ pub struct AnotifyError {
     pub(crate) ty: AnotifyErrorType,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AnotifyErrorType {
     DoesNotExist,
     ExpectedDir,
@@ -17,10 +17,20 @@ pub enum AnotifyErrorType {
     SystemResourceLimit,
     NoPermission,
     InvalidFilePath,
+    /// Watch was closed by some external action (file deleted, moved, or unmounted)
     Closed,
-    Unknown {
-        source: Box<dyn std::error::Error + Send + Sync + 'static>,
-    },
+    Unknown,
+}
+
+impl Clone for AnotifyError {
+    fn clone(&self) -> Self {
+        AnotifyError {
+            message: self.message.clone(),
+            backtrace: std::backtrace::Backtrace::disabled(),
+            path: self.path.clone(),
+            ty: self.ty.clone(),
+        }
+    }
 }
 
 impl AnotifyError {
@@ -51,6 +61,15 @@ impl AnotifyError {
     pub(crate) fn with_message(mut self, message: impl Into<String>) -> Self {
         self.message.replace(message.into());
         self
+    }
+
+    /// Get the backtrace for this error.
+    ///
+    /// Stability:
+    /// This method is not considered stable, and will be removed as soon
+    /// as the provider api for backtraces is stabalized.
+    pub fn backtrace(&self) -> &std::backtrace::Backtrace {
+        &self.backtrace
     }
 }
 
@@ -83,25 +102,7 @@ impl std::fmt::Display for AnotifyError {
     }
 }
 
-impl AnotifyError {
-    /// Get the backtrace for this error.
-    ///
-    /// Stability:
-    /// This method is not considered stable, and will be removed as soon
-    /// as the provider api for backtraces is stabalized.
-    pub fn backtrace(&self) -> &std::backtrace::Backtrace {
-        &self.backtrace
-    }
-}
-
-impl std::error::Error for AnotifyError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match &self.ty {
-            AnotifyErrorType::Unknown { source } => Some(source.as_ref()),
-            _ => None,
-        }
-    }
-}
+impl std::error::Error for AnotifyError {}
 
 impl std::fmt::Display for AnotifyErrorType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -116,7 +117,7 @@ impl std::fmt::Display for AnotifyErrorType {
             AnotifyErrorType::NoPermission => write!(f, "No Permission For Action"),
             AnotifyErrorType::InvalidFilePath => write!(f, "Invalid or Non-Existant Path"),
             AnotifyErrorType::Closed => write!(f, "Anotify Instance was Closed"),
-            AnotifyErrorType::Unknown { source } => write!(f, "Unknown({source})"),
+            AnotifyErrorType::Unknown => write!(f, "Unknown Error Encountered"),
         }
     }
 }

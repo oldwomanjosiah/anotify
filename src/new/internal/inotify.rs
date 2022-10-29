@@ -7,7 +7,6 @@ use std::{
 
 use nix::sys::inotify::Inotify;
 use tokio::io::{unix::AsyncFd, Interest};
-use tracing_impl::callsite::Identifier;
 
 use crate::new::{
     external::error::{AnotifyError, AnotifyErrorType, Result},
@@ -156,9 +155,10 @@ impl InotifyBinding {
             Error::EACCES => AnotifyErrorType::NoPermission,
             Error::ENAMETOOLONG => AnotifyErrorType::InvalidFilePath,
             Error::ENOENT => AnotifyErrorType::DoesNotExist,
-            _ => AnotifyErrorType::Unknown {
-                source: Box::new(error),
-            },
+            _ => {
+                tracing_impl::warn!("Could not handle error with type {error:?}");
+                AnotifyErrorType::Unknown
+            }
         };
 
         AnotifyError::new(ty).with_message("Could not perform iNotify action")
