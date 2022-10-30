@@ -15,7 +15,7 @@ mod binding;
 mod inotify;
 mod registry;
 
-mod bridge {
+pub mod bridge {
     use crate::new::{error::Result, external::Event, internal::Id, EventFilter};
     use std::path::PathBuf;
     use tokio::sync::mpsc::{Receiver, Sender};
@@ -106,9 +106,15 @@ impl SharedState {
             None
         }
     }
+
+    pub fn on_drop(&self, id: Id) {
+        if self.requests.try_send(bridge::Request::Drop(id)).is_err() {
+            tracing_impl::info!("Could not notify task of drop");
+        }
+    }
 }
 
-type Shared = Arc<SharedState>;
+pub(crate) type Shared = Arc<SharedState>;
 
 struct TaskState<B, I> {
     root_span: tracing_impl::Span,
