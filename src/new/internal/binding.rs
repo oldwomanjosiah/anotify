@@ -44,6 +44,11 @@ impl<I> BindingEvent<I> {
 pub trait Binding {
     type Identifier: PartialEq + PartialOrd + Hash + Copy + 'static;
 
+    /// Create a new instance of this binding
+    fn new() -> Result<Self>
+    where
+        Self: Sized;
+
     /// Create a new watch
     fn create(
         &mut self,

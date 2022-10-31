@@ -11,9 +11,9 @@ use std::{
 
 use super::EventFilter;
 
-mod binding;
-mod inotify;
-mod registry;
+pub mod binding;
+pub mod inotify;
+pub mod registry;
 
 pub mod bridge {
     use crate::new::{error::Result, external::Event, internal::Id, EventFilter};
@@ -37,6 +37,7 @@ pub mod bridge {
     pub enum Request {
         Create(CollectorRequest),
         Drop(Id),
+        Close,
     }
 }
 
@@ -47,6 +48,7 @@ pub type Platform = inotify::InotifyBinding;
 #[repr(transparent)]
 pub struct Id(usize);
 
+#[derive(Debug)]
 pub(crate) struct SharedState {
     next_id: AtomicUsize,
     channel_size: usize,
@@ -54,7 +56,7 @@ pub(crate) struct SharedState {
 }
 
 impl SharedState {
-    const DEFAULT_CAPACITY: usize = 32;
+    pub const DEFAULT_CAPACITY: usize = 32;
 
     pub fn new() -> (Arc<Self>, bridge::RequestRx) {
         Self::with_capacity(Self::DEFAULT_CAPACITY)
@@ -112,11 +114,15 @@ impl SharedState {
             tracing_impl::info!("Could not notify task of drop");
         }
     }
+
+    pub fn send_close(&self) -> bool {
+        self.requests.try_send(bridge::Request::Close).is_ok()
+    }
 }
 
 pub(crate) type Shared = Arc<SharedState>;
 
-struct TaskState<B, I> {
+pub(crate) struct TaskState<B, I> {
     root_span: tracing_impl::Span,
     shared: Shared,
     requests: bridge::RequestRx,
@@ -125,14 +131,14 @@ struct TaskState<B, I> {
 }
 
 impl<B, I> TaskState<B, I> {
-    fn new(
+    pub fn new(
         shared: Shared,
         requests: bridge::RequestRx,
     ) -> Result<TaskState<Platform, <Platform as binding::Binding>::Identifier>> {
         TaskState::new_with(shared, requests, Platform::new()?)
     }
 
-    fn new_with(shared: Shared, requests: bridge::RequestRx, binding: B) -> Result<Self> {
+    pub fn new_with(shared: Shared, requests: bridge::RequestRx, binding: B) -> Result<Self> {
         let root_span = tracing_impl::info_span!("anotify_task");
 
         root_span.in_scope(|| tracing_impl::info!("Created"));
@@ -157,7 +163,7 @@ where
     I: Copy + Eq + Hash + Debug,
     I: Send + 'static,
 {
-    fn launch_in(self, runtime: tokio::runtime::Handle) -> tokio::task::JoinHandle<()> {
+    pub fn launch_in(self, runtime: tokio::runtime::Handle) -> tokio::task::JoinHandle<()> {
         let _guard = runtime.enter();
 
         let span = self.root_span.clone();

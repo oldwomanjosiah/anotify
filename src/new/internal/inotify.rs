@@ -56,18 +56,6 @@ pub struct WatchIdentifier(nix::sys::inotify::WatchDescriptor);
 
 impl InotifyBinding {
     /// Create a new platform binding for inotify
-    pub fn new() -> Result<Self> {
-        use nix::sys::inotify::*;
-        let inotify = Inotify::init(InitFlags::IN_NONBLOCK | InitFlags::IN_CLOEXEC)
-            .map_err(Self::convert_error)?;
-
-        let fd = AsyncFd::with_interest(OwnedInotify(inotify), Interest::READABLE).unwrap();
-
-        let stats = stats::Stats::new();
-
-        Ok(Self { fd, stats })
-    }
-
     fn create_mask(flags: EventFilter, update: bool) -> nix::sys::inotify::AddWatchFlags {
         use crate::new::EventFilterType;
         use nix::sys::inotify::AddWatchFlags;
@@ -177,6 +165,21 @@ impl InotifyBinding {
 
 impl Binding for InotifyBinding {
     type Identifier = WatchIdentifier;
+
+    fn new() -> Result<Self>
+    where
+        Self: Sized,
+    {
+        use nix::sys::inotify::*;
+        let inotify = Inotify::init(InitFlags::IN_NONBLOCK | InitFlags::IN_CLOEXEC)
+            .map_err(Self::convert_error)?;
+
+        let fd = AsyncFd::with_interest(OwnedInotify(inotify), Interest::READABLE).unwrap();
+
+        let stats = stats::Stats::new();
+
+        Ok(Self { fd, stats })
+    }
 
     fn create(
         &mut self,
