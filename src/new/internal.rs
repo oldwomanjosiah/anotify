@@ -131,14 +131,7 @@ pub(crate) struct TaskState<B, I> {
 }
 
 impl<B, I> TaskState<B, I> {
-    pub fn new(
-        shared: Shared,
-        requests: bridge::RequestRx,
-    ) -> Result<TaskState<Platform, <Platform as binding::Binding>::Identifier>> {
-        TaskState::new_with(shared, requests, Platform::new()?)
-    }
-
-    pub fn new_with(shared: Shared, requests: bridge::RequestRx, binding: B) -> Result<Self> {
+    pub fn new(shared: Shared, requests: bridge::RequestRx, binding: B) -> Result<Self> {
         let root_span = tracing_impl::info_span!("anotify_task");
 
         root_span.in_scope(|| tracing_impl::info!("Created"));
@@ -190,7 +183,7 @@ where
         Ok(())
     }
 
-    fn handle_request(&mut self, request: bridge::Request) -> crate::new::error::Result<()> {
+    fn handle_request(&mut self, request: bridge::Request) -> crate::new::error::Result<bool> {
         match request {
             bridge::Request::Create(request) => {
                 self.registry
@@ -200,9 +193,11 @@ where
             bridge::Request::Drop(id) => {
                 self.registry.deregister_interest(&mut self.binding, id)?;
             }
+
+            bridge::Request::Close => return Ok(false),
         }
 
-        Ok(())
+        Ok(true)
     }
 
     fn handle_events(
@@ -235,9 +230,15 @@ where
                         continue;
                     };
 
-                    if let Err(e) = self.handle_request(req) {
-                        // TODO Should these be fatal?
-                        tracing_impl::error!("While Handling Request:\n{e}");
+                    match self.handle_request(req) {
+                        Err(e) => {
+                            tracing_impl::error!("While Handling Request:\n{e}");
+                        }
+                        Ok(true) => {},
+                        Ok(false) => {
+                            tracing_impl::info!("Close Requested");
+                            break;
+                        }
                     }
                 },
                 events = self.binding.events(), if !self.registry.empty() => {

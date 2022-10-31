@@ -105,29 +105,28 @@ mod builder {
             }
         }
 
-        pub fn with_runtime(mut self, handle: tokio::runtime::Handle) -> Self {
+        pub fn with_runtime(self, handle: tokio::runtime::Handle) -> Self {
             Self {
                 handle: Some(handle),
                 ..self
             }
         }
 
-        pub fn with_buffer(mut self, buffer: usize) -> Self {
+        pub fn with_buffer(self, buffer: usize) -> Self {
             Self { buffer, ..self }
         }
 
         pub fn build(self) -> Result<Anotify>
         where
-            B: crate::new::internal::binding::Binding,
-            B::Identifier: std::fmt::Debug + Eq + Hash + Send + 'static,
-            B: Send,
+            B: crate::new::internal::binding::Binding + Send + 'static,
+            B::Identifier: std::fmt::Debug + Eq + Hash + Send,
         {
             let (shared, requests) = crate::new::internal::SharedState::with_capacity(self.buffer);
 
             let binding = B::new()?;
 
             let task_state =
-                crate::new::internal::TaskState::new_with(shared.clone(), requests, binding)?;
+                crate::new::internal::TaskState::new(shared.clone(), requests, binding)?;
 
             let handle = self
                 .handle
@@ -138,7 +137,7 @@ mod builder {
             let inner = super::handle::AnotifyHandle { shared };
 
             Ok(Anotify {
-                cancel_on_drop: false,
+                cancel_on_drop: true,
                 inner,
                 jh,
             })
@@ -162,14 +161,14 @@ mod handle {
 
     #[derive(Debug)]
     pub struct Anotify {
-        cancel_on_drop: bool,
-        inner: AnotifyHandle,
-        jh: JoinHandle<()>,
+        pub(crate) cancel_on_drop: bool,
+        pub(crate) inner: AnotifyHandle,
+        pub(crate) jh: JoinHandle<()>,
     }
 
     #[derive(Clone, Debug)]
     pub struct AnotifyHandle {
-        shared: Shared,
+        pub(crate) shared: Shared,
     }
 
     impl Anotify {
