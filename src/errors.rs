@@ -1,5 +1,7 @@
 use std::{path::PathBuf, sync::Arc};
 
+pub type Result<T, E = AnotifyError> = core::result::Result<T, E>;
+
 #[derive(Debug)]
 pub struct AnotifyError {
     pub(crate) message: Option<String>,
@@ -72,8 +74,6 @@ impl AnotifyError {
         &self.backtrace
     }
 }
-
-pub type Result<T, E = AnotifyError> = core::result::Result<T, E>;
 
 impl std::fmt::Display for AnotifyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
