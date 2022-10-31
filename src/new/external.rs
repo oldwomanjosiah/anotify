@@ -83,22 +83,22 @@ pub enum EventFilterType {
 /// Combined filter flags.
 pub type EventFilter = BitFlags<EventFilterType>;
 
-mod builder {
+pub mod builder {
     use std::hash::Hash;
 
     use crate::new::external::Result;
 
     use super::handle::Anotify;
 
-    pub struct Builder<B> {
+    pub struct AnotifyBuilder<B> {
         buffer: usize,
         handle: Option<tokio::runtime::Handle>,
         _phantom: std::marker::PhantomData<B>,
     }
 
-    impl<B> Builder<B> {
-        pub fn new() -> Builder<crate::new::internal::inotify::InotifyBinding> {
-            Builder {
+    impl<B> AnotifyBuilder<B> {
+        pub fn new() -> AnotifyBuilder<crate::new::internal::inotify::InotifyBinding> {
+            AnotifyBuilder {
                 buffer: crate::new::internal::SharedState::DEFAULT_CAPACITY,
                 handle: None,
                 _phantom: Default::default(),
@@ -145,7 +145,7 @@ mod builder {
     }
 }
 
-mod handle {
+pub mod handle {
     use std::path::PathBuf;
 
     use tokio::task::JoinHandle;
