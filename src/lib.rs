@@ -1,14 +1,16 @@
 pub mod binding;
+pub mod errors;
 pub mod inotify;
 
 pub mod builder;
 
-pub fn builder() -> builder::AnotifyBuilder {
-    builder::AnotifyBuilder::new();
+pub fn builder() -> builder::AnotifyBuilder<Platform> {
+    builder::AnotifyBuilder::new()
 }
 
 // To Re-Export
 mod events;
+mod futures;
 mod handle;
 
 pub use events::*;

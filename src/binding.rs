@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::new::external::error::Result;
+use crate::{errors::Result, events::EventFilter};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BindingEventType {
@@ -50,18 +50,14 @@ pub trait Binding {
         Self: Sized;
 
     /// Create a new watch
-    fn create(
-        &mut self,
-        path: impl AsRef<Path>,
-        flags: crate::new::external::EventFilter,
-    ) -> Result<Self::Identifier>;
+    fn create(&mut self, path: impl AsRef<Path>, flags: EventFilter) -> Result<Self::Identifier>;
 
     /// Update an existing watch
     fn update(
         &mut self,
         id: Self::Identifier,
         path: impl AsRef<Path>,
-        flags: crate::new::external::EventFilter,
+        flags: EventFilter,
     ) -> Result<Self::Identifier>;
 
     /// Remove an existing watch

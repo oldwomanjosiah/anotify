@@ -1,4 +1,7 @@
-use crate::new::{error::Result, external::Event, internal::Id, EventFilter};
+use crate::errors::Result;
+use crate::events::{Event, EventFilter};
+use crate::shared::Id;
+
 use std::path::PathBuf;
 use tokio::sync::mpsc::{Receiver, Sender};
 

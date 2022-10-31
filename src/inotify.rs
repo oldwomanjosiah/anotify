@@ -8,6 +8,11 @@ use std::{
 use nix::sys::inotify::Inotify;
 use tokio::io::{unix::AsyncFd, Interest};
 
+use crate::{
+    errors::{AnotifyError, AnotifyErrorType, Result},
+    EventFilter,
+};
+
 use super::binding::{Binding, BindingEvent, BindingEventType};
 
 struct OwnedInotify(Inotify);
@@ -50,7 +55,7 @@ pub struct WatchIdentifier(nix::sys::inotify::WatchDescriptor);
 impl InotifyBinding {
     /// Create a new platform binding for inotify
     fn create_mask(flags: EventFilter, update: bool) -> nix::sys::inotify::AddWatchFlags {
-        use crate::new::EventFilterType;
+        use crate::EventFilterType;
         use nix::sys::inotify::AddWatchFlags;
 
         let mut out = AddWatchFlags::IN_DELETE_SELF | AddWatchFlags::IN_MOVE_SELF;
@@ -169,16 +174,12 @@ impl Binding for InotifyBinding {
 
         let fd = AsyncFd::with_interest(OwnedInotify(inotify), Interest::READABLE).unwrap();
 
-        let stats = stats::Stats::new();
+        let stats = Stats::new();
 
         Ok(Self { fd, stats })
     }
 
-    fn create(
-        &mut self,
-        path: impl AsRef<Path>,
-        flags: crate::new::external::EventFilter,
-    ) -> Result<Self::Identifier> {
+    fn create(&mut self, path: impl AsRef<Path>, flags: EventFilter) -> Result<Self::Identifier> {
         let wd = self
             .fd
             .get_mut()
@@ -194,7 +195,7 @@ impl Binding for InotifyBinding {
         &mut self,
         id: Self::Identifier,
         path: impl AsRef<Path>,
-        flags: crate::new::external::EventFilter,
+        flags: EventFilter,
     ) -> Result<Self::Identifier> {
         let wd = self
             .fd

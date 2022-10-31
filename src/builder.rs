@@ -1,8 +1,6 @@
 use std::hash::Hash;
 
-use crate::new::external::Result;
-
-use super::handle::Anotify;
+use crate::{errors::Result, handle::Anotify, shared::SharedState, task::TaskState};
 
 pub struct AnotifyBuilder<B> {
     buffer: usize,
@@ -11,9 +9,9 @@ pub struct AnotifyBuilder<B> {
 }
 
 impl<B> AnotifyBuilder<B> {
-    pub fn new() -> AnotifyBuilder<crate::new::internal::inotify::InotifyBinding> {
+    pub fn new() -> AnotifyBuilder<B> {
         AnotifyBuilder {
-            buffer: crate::new::internal::SharedState::DEFAULT_CAPACITY,
+            buffer: SharedState::DEFAULT_CAPACITY,
             handle: None,
             _phantom: Default::default(),
         }
@@ -32,14 +30,14 @@ impl<B> AnotifyBuilder<B> {
 
     pub fn build(self) -> Result<Anotify>
     where
-        B: crate::new::internal::binding::Binding + Send + 'static,
+        B: crate::binding::Binding + Send + 'static,
         B::Identifier: std::fmt::Debug + Eq + Hash + Send,
     {
-        let (shared, requests) = crate::new::internal::SharedState::with_capacity(self.buffer);
+        let (shared, requests) = SharedState::with_capacity(self.buffer);
 
         let binding = B::new()?;
 
-        let task_state = crate::new::internal::TaskState::new(shared.clone(), requests, binding)?;
+        let task_state = TaskState::new(shared.clone(), requests, binding)?;
 
         let handle = self
             .handle

@@ -1,3 +1,13 @@
+use std::{
+    path::PathBuf,
+    sync::{atomic::AtomicUsize, Arc},
+};
+
+use crate::{
+    bridge::{CollectorRequest, CollectorRx, Request, RequestRx, RequestTx},
+    EventFilter,
+};
+
 /// public unique id for watch
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -7,17 +17,17 @@ pub struct Id(usize);
 pub(crate) struct SharedState {
     next_id: AtomicUsize,
     channel_size: usize,
-    requests: bridge::RequestTx,
+    requests: RequestTx,
 }
 
 impl SharedState {
     pub const DEFAULT_CAPACITY: usize = 32;
 
-    pub fn new() -> (Arc<Self>, bridge::RequestRx) {
+    pub fn new() -> (Arc<Self>, RequestRx) {
         Self::with_capacity(Self::DEFAULT_CAPACITY)
     }
 
-    pub fn with_capacity(channel_size: usize) -> (Arc<Self>, bridge::RequestRx) {
+    pub fn with_capacity(channel_size: usize) -> (Arc<Self>, RequestRx) {
         let (requests, rx) = tokio::sync::mpsc::channel(channel_size);
 
         let shared = Self {
@@ -40,11 +50,11 @@ impl SharedState {
         once: bool,
         path: PathBuf,
         filter: EventFilter,
-    ) -> Option<(Id, bridge::CollectorRx)> {
+    ) -> Option<(Id, CollectorRx)> {
         let (sender, rx) = tokio::sync::mpsc::channel(self.channel_size);
         let id = self.next_id();
 
-        let req = bridge::CollectorRequest {
+        let req = CollectorRequest {
             id,
             path,
             once,
@@ -52,12 +62,7 @@ impl SharedState {
             filter,
         };
 
-        if self
-            .requests
-            .send(bridge::Request::Create(req))
-            .await
-            .is_ok()
-        {
+        if self.requests.send(Request::Create(req)).await.is_ok() {
             Some((id, rx))
         } else {
             None
@@ -65,13 +70,13 @@ impl SharedState {
     }
 
     pub fn on_drop(&self, id: Id) {
-        if self.requests.try_send(bridge::Request::Drop(id)).is_err() {
+        if self.requests.try_send(Request::Drop(id)).is_err() {
             tracing_impl::info!("Could not notify task of drop");
         }
     }
 
     pub fn send_close(&self) -> bool {
-        self.requests.try_send(bridge::Request::Close).is_ok()
+        self.requests.try_send(Request::Close).is_ok()
     }
 }
 

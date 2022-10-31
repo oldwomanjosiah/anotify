@@ -1,8 +1,6 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use enumflags2::BitFlags;
-
-use self::error::Result;
 
 /// The type of event captured by this watch
 #[non_exhaustive]

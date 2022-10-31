@@ -4,15 +4,11 @@ use std::{
     path::PathBuf,
 };
 
-use crate::new::{EventFilter, EventType};
-
-use super::{
-    super::Event,
-    binding::{Binding, BindingEvent, BindingEventType},
-    Id,
-};
-
-use super::bridge::*;
+use crate::binding::{Binding, BindingEvent, BindingEventType};
+use crate::bridge::*;
+use crate::errors::Result;
+use crate::events::{Event, EventFilter, EventType};
+use crate::shared::Id;
 
 /// Represents a single collector (single event, or stream), which has registered interest in some
 /// file or directory.
@@ -86,11 +82,7 @@ impl<I: Eq + Hash + Copy + std::fmt::Debug> Registry<I> {
     }
 
     /// Register the interest of a new collector.
-    pub fn register_interest<B>(
-        &mut self,
-        binding: &mut B,
-        req: CollectorRequest,
-    ) -> crate::new::error::Result<()>
+    pub fn register_interest<B>(&mut self, binding: &mut B, req: CollectorRequest) -> Result<()>
     where
         B: Binding<Identifier = I>,
     {
@@ -163,11 +155,7 @@ impl<I: Eq + Hash + Copy + std::fmt::Debug> Registry<I> {
     }
 
     /// Remove a collector from the registry.
-    pub fn deregister_interest<B>(
-        &mut self,
-        binding: &mut B,
-        id: Id,
-    ) -> crate::new::error::Result<()>
+    pub fn deregister_interest<B>(&mut self, binding: &mut B, id: Id) -> Result<()>
     where
         B: Binding<Identifier = I>,
     {
@@ -238,10 +226,7 @@ impl<I: Eq + Hash + Copy + std::fmt::Debug> Registry<I> {
     /// Try and send a set of events to their listening collectors.
     ///
     /// Returns a list of collectors who should be removed after these events have been sent.
-    pub fn try_send_events(
-        &mut self,
-        events: Vec<BindingEvent<I>>,
-    ) -> crate::new::error::Result<HashSet<Id>> {
+    pub fn try_send_events(&mut self, events: Vec<BindingEvent<I>>) -> Result<HashSet<Id>> {
         let mut to_remove = HashSet::new();
 
         for event in events.into_iter() {
@@ -288,7 +273,7 @@ impl<I: Eq + Hash + Copy + std::fmt::Debug> Registry<I> {
                 }
 
                 if closing {
-                    use crate::new::error::*;
+                    use crate::errors::*;
 
                     if collector
                         .sender

@@ -2,14 +2,10 @@ use std::path::PathBuf;
 
 use tokio::task::JoinHandle;
 
-use crate::new::error::Result;
-
-use super::{
-    super::internal::Shared,
-    error::{AnotifyError, AnotifyErrorType},
-    fut::{AnotifyFuture, AnotifyStream},
-    EventFilter,
-};
+use crate::errors::{AnotifyError, AnotifyErrorType, Result};
+use crate::events::EventFilter;
+use crate::futures::{self, AnotifyFuture, AnotifyStream};
+use crate::shared::Shared;
 
 #[derive(Debug)]
 pub struct Anotify {
@@ -85,7 +81,7 @@ impl AnotifyHandle {
                     return Err(AnotifyError::new(AnotifyErrorType::Closed).with_path(path.into()))
             };
 
-        Ok(super::fut::fut(self.shared.clone(), id, recv))
+        Ok(futures::fut(self.shared.clone(), id, recv))
     }
 
     pub async fn watch(
@@ -100,7 +96,7 @@ impl AnotifyHandle {
                     return Err(AnotifyError::new(AnotifyErrorType::Closed).with_path(path.into()))
             };
 
-        Ok(super::fut::stream(self.shared.clone(), id, recv))
+        Ok(futures::stream(self.shared.clone(), id, recv))
     }
 }
 

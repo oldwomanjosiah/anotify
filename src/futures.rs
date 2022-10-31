@@ -1,6 +1,7 @@
-use crate::new::internal::{Id, Shared};
-
-use super::{super::internal::bridge::CollectorRx, error::Result, Event};
+use crate::bridge::CollectorRx;
+use crate::errors::{AnotifyError, AnotifyErrorType, Result};
+use crate::events::Event;
+use crate::shared::{Id, Shared};
 
 pub(crate) fn fut(shared: Shared, id: Id, recv: CollectorRx) -> AnotifyFuture {
     let internal = Some(AnotifyFutInternal { shared, id, recv });
@@ -44,7 +45,6 @@ impl std::future::Future for AnotifyFuture {
         use std::task::*;
 
         fn closed(message: &'static str) -> Result<Event> {
-            use super::error::*;
             Err(AnotifyError::new(AnotifyErrorType::Closed).with_message(message))
         }
 

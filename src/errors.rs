@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 pub type Result<T, E = AnotifyError> = core::result::Result<T, E>;
 
