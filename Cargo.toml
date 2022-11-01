@@ -17,15 +17,13 @@ exclude = [
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = [ "tracing" ]
-tracing = [ "tokio/tracing", "tracing-impl" ]
+default = []
+log = [ "tracing/log" ]
 
 [dependencies]
 nix = "0.25"
 thiserror = "1"
 tokio-stream = "0.1"
-cfg-if = "1.0.0"
-displaydoc = "0.2.3"
 enumflags2 = "0.7"
 
 [dependencies.tokio]
@@ -33,13 +31,10 @@ version = "1"
 default-features = false
 features = [ "sync", "rt", "net", "macros" ]
 
-[dependencies.tracing-impl]
+[dependencies.tracing]
 package = "tracing"
 version = "0.1"
-optional = true
 default-features = false
-features = [ "log" ]
-
 
 [dev-dependencies]
 tempdir = "0.3"

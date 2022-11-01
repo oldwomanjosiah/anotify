@@ -67,7 +67,7 @@ impl SharedState {
 
     pub fn on_drop(&self, id: Id) {
         if self.requests.try_send(Request::Drop(id)).is_err() {
-            tracing_impl::info!("Could not notify task of drop");
+            tracing::info!("Could not notify task of drop");
         }
     }
 

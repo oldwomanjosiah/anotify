@@ -97,7 +97,7 @@ impl<I: Eq + Hash + Copy + std::fmt::Debug> Registry<I> {
                 e.attach_path(it.path.clone());
 
                 if sender.try_send(Err(e.clone())).is_err() {
-                    tracing_impl::info!("Could not notify requester of failed request");
+                    tracing::info!("Could not notify requester of failed request");
                 }
 
                 // Update failed, reset watcher state
@@ -122,7 +122,7 @@ impl<I: Eq + Hash + Copy + std::fmt::Debug> Registry<I> {
                     e.attach_path(path.clone());
 
                     if sender.try_send(Err(e.clone())).is_err() {
-                        tracing_impl::info!("Could not notify requester of failed request");
+                        tracing::info!("Could not notify requester of failed request");
                     }
 
                     return Err(e);
@@ -231,7 +231,7 @@ impl<I: Eq + Hash + Copy + std::fmt::Debug> Registry<I> {
             let events = self.convert_event(event.wd, event);
 
             let Some(watch) = self.watches.get(&wd) else {
-                tracing_impl::info!(?wd, "Watch was removed for id before event could be processed");
+                tracing::info!(?wd, "Watch was removed for id before event could be processed");
                 continue;
             };
 
@@ -247,21 +247,18 @@ impl<I: Eq + Hash + Copy + std::fmt::Debug> Registry<I> {
                         match collector.sender.try_send(Ok(event.clone())) {
                             Ok(()) => {}
                             Err(TrySendError::Full(_)) => {
-                                tracing_impl::info!(?id, "Could not send event, sender full");
+                                tracing::info!(?id, "Could not send event, sender full");
                                 continue 'collectors;
                             }
                             Err(TrySendError::Closed(_)) => {
-                                tracing_impl::trace!(?id, "Removing collector, sender closed");
+                                tracing::trace!(?id, "Removing collector, sender closed");
                                 to_remove.insert(id);
                                 continue 'collectors;
                             }
                         }
 
                         if collector.once {
-                            tracing_impl::trace!(
-                                ?id,
-                                "Removing collector, requested only single event"
-                            );
+                            tracing::trace!(?id, "Removing collector, requested only single event");
                             to_remove.insert(id);
                             continue 'collectors;
                         }
@@ -276,7 +273,7 @@ impl<I: Eq + Hash + Copy + std::fmt::Debug> Registry<I> {
                         .try_send(Err(AnotifyError::new(AnotifyErrorType::Closed)))
                         .is_err()
                     {
-                        tracing_impl::debug!("Could not notify collector of closing");
+                        tracing::debug!("Could not notify collector of closing");
                     }
 
                     to_remove.insert(id);

@@ -1,5 +1,3 @@
-use tracing_impl::Instrument;
-
 use crate::{
     binding::{Binding, BindingEvent},
     bridge::{Request, RequestRx},
@@ -11,7 +9,7 @@ use crate::{
 use std::{fmt::Debug, hash::Hash};
 
 pub(crate) struct TaskState<B, I> {
-    root_span: tracing_impl::Span,
+    root_span: tracing::Span,
     #[allow(unused)]
     shared: Shared,
     requests: RequestRx,
@@ -21,9 +19,9 @@ pub(crate) struct TaskState<B, I> {
 
 impl<B, I> TaskState<B, I> {
     pub fn new(shared: Shared, requests: RequestRx, binding: B) -> Result<Self> {
-        let root_span = tracing_impl::info_span!("anotify_task");
+        let root_span = tracing::info_span!("anotify_task");
 
-        root_span.in_scope(|| tracing_impl::info!("Created"));
+        root_span.in_scope(|| tracing::info!("Created"));
 
         Ok(Self {
             root_span,
@@ -51,12 +49,7 @@ where
 
         let span = self.root_span.clone();
 
-        tokio::spawn(
-            async move {
-                self.worker().await;
-            }
-            .instrument(span),
-        )
+        tokio::spawn(tracing::Instrument::instrument(self.worker(), span))
     }
 }
 
@@ -96,7 +89,7 @@ where
     where
         B: Binding<Identifier = I>,
     {
-        tracing_impl::info!("Starting");
+        tracing::info!("Starting");
 
         let mut requests_closed: bool = false;
 
@@ -104,18 +97,18 @@ where
             tokio::select! {
                 req = self.requests.recv(), if !requests_closed => {
                     let Some(req) = req else {
-                        tracing_impl::info!("Requests channel was closed");
+                        tracing::info!("Requests channel was closed");
                         requests_closed = true;
                         continue;
                     };
 
                     match self.handle_request(req) {
                         Err(e) => {
-                            tracing_impl::error!("While Handling Request:\n{e}");
+                            tracing::error!("While Handling Request:\n{e}");
                         }
                         Ok(true) => {},
                         Ok(false) => {
-                            tracing_impl::info!("Close Requested");
+                            tracing::info!("Close Requested");
                             break;
                         }
                     }
@@ -124,21 +117,21 @@ where
                     match events {
                         Ok(events) => if let Err(e) = self.handle_events(events) {
                             // TODO Should these be fatal?
-                            tracing_impl::error!("While handling Events:\n{e}");
+                            tracing::error!("While handling Events:\n{e}");
                         }
                         Err(e) => {
-                            tracing_impl::error!("While getting Events:\n{e}");
+                            tracing::error!("While getting Events:\n{e}");
                             break;
                         }
                     }
                 },
                 else => {
-                    tracing_impl::info!("Requests Closed, Registry Empty");
+                    tracing::info!("Requests Closed, Registry Empty");
                     break;
                 }
             }
         }
 
-        tracing_impl::info!("Exiting");
+        tracing::info!("Exiting");
     }
 }

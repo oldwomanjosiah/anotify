@@ -91,7 +91,7 @@ impl InotifyBinding {
                 let remainder = mask & !taken;
 
                 if !remainder.is_empty() {
-                    tracing_impl::warn!(?remainder, "Some Event Bits were not consumed");
+                    tracing::warn!(?remainder, "Some Event Bits were not consumed");
                 }
             };
         }
@@ -142,7 +142,7 @@ impl InotifyBinding {
             Error::ENAMETOOLONG => AnotifyErrorType::InvalidFilePath,
             Error::ENOENT => AnotifyErrorType::DoesNotExist,
             _ => {
-                tracing_impl::warn!("Could not handle error with type {error:?}");
+                tracing::warn!("Could not handle error with type {error:?}");
                 AnotifyErrorType::Unknown
             }
         };
@@ -273,12 +273,12 @@ impl Binding for InotifyBinding {
 }
 
 struct Stats {
-    span: tracing_impl::Span,
+    span: tracing::Span,
 }
 
 impl Stats {
     pub fn new() -> Self {
-        let span = tracing_impl::trace_span!(
+        let span = tracing::trace_span!(
             "runtime.resource",
             concrete_type = "Inotify",
             kind = "file",
@@ -287,14 +287,14 @@ impl Stats {
         );
 
         span.in_scope(|| {
-            tracing_impl::trace!(
+            tracing::trace!(
                 target: "runtime::resource::state_update",
                 watching = 0,
                 watching.unit = "files",
                 watching.op = "override"
             );
 
-            tracing_impl::trace!(
+            tracing::trace!(
                 target: "runtime::resource::state_update",
                 events = 0,
                 events.unit = "events",
@@ -307,7 +307,7 @@ impl Stats {
 
     pub fn inc_files(&self, count: usize) {
         self.span.in_scope(|| {
-            tracing_impl::trace!(
+            tracing::trace!(
                  target: "runtime::resource::state_update",
                  watching = count,
                  watching.unit = "files",
@@ -318,7 +318,7 @@ impl Stats {
 
     pub fn dec_files(&self, count: usize) {
         self.span.in_scope(|| {
-            tracing_impl::trace!(
+            tracing::trace!(
                  target: "runtime::resource::state_update",
                  watching = count,
                  watching.unit = "files",
@@ -328,7 +328,7 @@ impl Stats {
     }
 
     pub fn note_events(&self, count: usize) {
-        tracing_impl::trace!(
+        tracing::trace!(
             target: "runtime::resource::state_update",
             events = count,
             events.unit = "events",

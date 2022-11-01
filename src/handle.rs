@@ -37,7 +37,7 @@ impl Anotify {
         if e.is_panic() {
             std::panic::resume_unwind(e.into_panic());
         } else {
-            tracing_impl::error!(error = %e, "Could not join on task");
+            tracing::error!(error = %e, "Could not join on task");
         }
     }
 
