@@ -27,10 +27,12 @@ impl Drop for AnotifyFutInternal {
     }
 }
 
+/// Future type for single-event watches [`Anotify::next`][`crate::AnotifyHandle::next`]
 pub struct AnotifyFuture {
     internal: Option<AnotifyFutInternal>,
 }
 
+/// Stream type for multievent watches [`Anotify::watch`][`crate::AnotifyHandle::watch`]
 pub struct AnotifyStream {
     internal: AnotifyFutInternal,
 }
@@ -53,8 +55,12 @@ impl std::future::Future for AnotifyFuture {
         };
 
         let inner = match ready!(int.recv.poll_recv(cx)) {
-            Some(it) => {
+            Some(mut it) => {
                 self.internal = None;
+
+                if let Err(ref mut e) = it {
+                    e.recapture_backtrace();
+                }
 
                 it
             }
@@ -72,6 +78,13 @@ impl tokio_stream::Stream for AnotifyStream {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        self.internal.recv.poll_recv(cx)
+        use std::task::*;
+        let mut res = ready!(self.internal.recv.poll_recv(cx));
+
+        if let Some(Err(ref mut e)) = res {
+            e.recapture_backtrace();
+        }
+
+        Poll::Ready(res)
     }
 }
