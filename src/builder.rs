@@ -9,7 +9,7 @@ pub struct AnotifyBuilder<B> {
 }
 
 impl<B> AnotifyBuilder<B> {
-    pub fn new() -> AnotifyBuilder<B> {
+    pub(crate) fn new() -> AnotifyBuilder<B> {
         AnotifyBuilder {
             buffer: SharedState::DEFAULT_CAPACITY,
             handle: None,
@@ -17,6 +17,7 @@ impl<B> AnotifyBuilder<B> {
         }
     }
 
+    /// Set the runtime which will be used to collect the events.
     pub fn with_runtime(self, handle: tokio::runtime::Handle) -> Self {
         Self {
             handle: Some(handle),
@@ -24,10 +25,28 @@ impl<B> AnotifyBuilder<B> {
         }
     }
 
+    /// Set the size of the request and event buffers
+    ///
+    /// Internal channels use bounded buffers, this sets the size for both the request buffer
+    /// (maximum unhandled watch requests) and the per-watch event buffers (maximum unconsumed
+    /// events for each stream).
     pub fn with_buffer(self, buffer: usize) -> Self {
         Self { buffer, ..self }
     }
 
+    /// Set the platform [`Binding`][`crate::binding::Binding`]
+    ///
+    /// Often used with the Test Platform Binding to avoid
+    /// side-effects in tests.
+    pub fn with_platform<New>(self) -> AnotifyBuilder<New> {
+        AnotifyBuilder {
+            _phantom: Default::default(),
+            buffer: self.buffer,
+            handle: self.handle,
+        }
+    }
+
+    /// Build the configured `Anotify` instance.
     pub fn build(self) -> Result<Anotify>
     where
         B: crate::binding::Binding + Send + 'static,

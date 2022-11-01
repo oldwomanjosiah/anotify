@@ -77,10 +77,6 @@ impl<I> Registry<I> {
 }
 
 impl<I: Eq + Hash + Copy + std::fmt::Debug> Registry<I> {
-    fn watches(&self, id: I) -> Option<&Watch> {
-        self.watches.get(&id)
-    }
-
     /// Register the interest of a new collector.
     pub fn register_interest<B>(&mut self, binding: &mut B, req: CollectorRequest) -> Result<()>
     where
@@ -95,13 +91,15 @@ impl<I: Eq + Hash + Copy + std::fmt::Debug> Registry<I> {
         } = req;
 
         if let Some((&wd, it)) = self.watches.iter_mut().find(|(_, v)| v.path == path) {
-            let res = if let Some(new_filter) = it.register(id, filter) {
+            let mut res = if let Some(new_filter) = it.register(id, filter) {
                 binding.update(wd, &it.path, new_filter).map(|_| ())
             } else {
                 Ok(())
             };
 
-            if let Err(ref e) = res {
+            if let Err(ref mut e) = res {
+                e.attach_path(it.path.clone());
+
                 if sender.try_send(Err(e.clone())).is_err() {
                     tracing_impl::info!("Could not notify requester of failed request");
                 }
@@ -124,7 +122,9 @@ impl<I: Eq + Hash + Copy + std::fmt::Debug> Registry<I> {
         } else {
             let wd = match binding.create(&path, filter) {
                 Ok(wd) => wd,
-                Err(e) => {
+                Err(mut e) => {
+                    e.attach_path(path.clone());
+
                     if sender.try_send(Err(e.clone())).is_err() {
                         tracing_impl::info!("Could not notify requester of failed request");
                     }

@@ -65,6 +65,14 @@ impl AnotifyError {
         self
     }
 
+    pub(crate) fn recapture_backtrace(&mut self) {
+        use std::backtrace::*;
+
+        if self.backtrace.status() != BacktraceStatus::Captured {
+            self.backtrace = Backtrace::capture();
+        }
+    }
+
     /// Get the backtrace for this error.
     ///
     /// Stability:

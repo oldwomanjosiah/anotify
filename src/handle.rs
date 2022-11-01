@@ -7,6 +7,7 @@ use crate::events::EventFilter;
 use crate::futures::{self, AnotifyFuture, AnotifyStream};
 use crate::shared::Shared;
 
+/// Anotify Instance
 #[derive(Debug)]
 pub struct Anotify {
     pub(crate) cancel_on_drop: bool,
@@ -14,12 +15,21 @@ pub struct Anotify {
     pub(crate) jh: JoinHandle<()>,
 }
 
+/// Non-Owning Handle Anotify Instance
 #[derive(Clone, Debug)]
 pub struct AnotifyHandle {
     pub(crate) shared: Shared,
 }
 
 impl Anotify {
+    pub fn builder() -> super::builder::AnotifyBuilder<super::Platform> {
+        super::builder::AnotifyBuilder::new()
+    }
+
+    pub fn new() -> Result<Self> {
+        Self::builder().build()
+    }
+
     /// Wait for this `Anotify` instance to close on it's own.
     pub async fn join(mut self) {
         let Err(e) = (&mut self.jh).await else { return; };

@@ -1,20 +1,27 @@
+#![doc = include_str!("docs/lib.md")]
+
+/// Common Platform API Binding Interface
 pub mod binding;
+
+/// Errors produced by this crate
 pub mod errors;
+
+/// Platform API Binding Interface for the iNotify Linux API
 pub mod inotify;
 
-pub mod builder;
-
-pub fn builder() -> builder::AnotifyBuilder<Platform> {
-    builder::AnotifyBuilder::new()
-}
-
 // To Re-Export
+mod builder;
 mod events;
 mod futures;
 mod handle;
 
+pub use builder::*;
 pub use events::*;
+pub use futures::*;
 pub use handle::*;
+
+/// Default Platform Bindings which will be used.
+pub type Platform = inotify::InotifyBinding;
 
 // Internals
 
@@ -30,6 +37,3 @@ mod shared;
 
 /// Task implementation
 mod task;
-
-/// Default Platform Bindings which will be used.
-pub type Platform = inotify::InotifyBinding;
