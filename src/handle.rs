@@ -61,7 +61,7 @@ impl Anotify {
 
         self.jh.abort();
 
-        self.join();
+        self.join().await;
     }
 
     /// Downgrade this owned handle into an unprivledged handle without

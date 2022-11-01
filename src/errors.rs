@@ -55,6 +55,7 @@ impl AnotifyError {
         self
     }
 
+    #[allow(unused)]
     pub(crate) fn attach_message(&mut self, message: impl Into<String>) -> &mut Self {
         self.message.replace(message.into());
         self

@@ -54,7 +54,7 @@ pub struct WatchIdentifier(nix::sys::inotify::WatchDescriptor);
 
 impl InotifyBinding {
     /// Create a new platform binding for inotify
-    fn create_mask(flags: EventFilter, update: bool) -> nix::sys::inotify::AddWatchFlags {
+    fn create_mask(flags: EventFilter) -> nix::sys::inotify::AddWatchFlags {
         use crate::EventFilterType;
         use nix::sys::inotify::AddWatchFlags;
 
@@ -183,7 +183,7 @@ impl Binding for InotifyBinding {
         let wd = self
             .fd
             .get_mut()
-            .add_watch(path.as_ref(), Self::create_mask(flags, false))
+            .add_watch(path.as_ref(), Self::create_mask(flags))
             .map_err(Self::convert_error)?;
 
         self.stats.inc_files(1);
@@ -200,7 +200,7 @@ impl Binding for InotifyBinding {
         let wd = self
             .fd
             .get_mut()
-            .add_watch(path.as_ref(), Self::create_mask(flags, false))
+            .add_watch(path.as_ref(), Self::create_mask(flags))
             .map_err(Self::convert_error)?;
 
         assert_eq!(

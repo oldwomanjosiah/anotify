@@ -52,10 +52,6 @@ impl<I> Registry<I> {
         self.collectors.is_empty()
     }
 
-    fn collector(&self, id: Id) -> Option<&Collector<I>> {
-        self.collectors.get(&id)
-    }
-
     fn cache_or_take(&mut self, cookie: u32, from: bool, path: PathBuf) -> Option<Event> {
         if let Some(other) = self.move_cache.remove(&cookie) {
             if from {

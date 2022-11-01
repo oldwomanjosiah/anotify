@@ -5,13 +5,14 @@ use crate::{
     bridge::{Request, RequestRx},
     errors::Result,
     registry::Registry,
-    shared::{Id, Shared},
+    shared::Shared,
 };
 
 use std::{fmt::Debug, hash::Hash};
 
 pub(crate) struct TaskState<B, I> {
     root_span: tracing_impl::Span,
+    #[allow(unused)]
     shared: Shared,
     requests: RequestRx,
     registry: Registry<I>,
@@ -33,6 +34,7 @@ impl<B, I> TaskState<B, I> {
         })
     }
 
+    #[allow(unused)]
     fn get_shared(&self) -> Shared {
         self.shared.clone()
     }
@@ -63,14 +65,6 @@ where
     B: Binding<Identifier = I>,
     I: Copy + Eq + Hash + Debug,
 {
-    fn deregister_all(&mut self, idents: Vec<Id>) -> Result<()> {
-        for id in idents.into_iter() {
-            self.registry.deregister_interest(&mut self.binding, id)?;
-        }
-
-        Ok(())
-    }
-
     fn handle_request(&mut self, request: Request) -> Result<bool> {
         match request {
             Request::Create(request) => {

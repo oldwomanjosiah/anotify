@@ -23,10 +23,6 @@ pub(crate) struct SharedState {
 impl SharedState {
     pub const DEFAULT_CAPACITY: usize = 32;
 
-    pub fn new() -> (Arc<Self>, RequestRx) {
-        Self::with_capacity(Self::DEFAULT_CAPACITY)
-    }
-
     pub fn with_capacity(channel_size: usize) -> (Arc<Self>, RequestRx) {
         let (requests, rx) = tokio::sync::mpsc::channel(channel_size);
 
