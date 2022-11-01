@@ -68,10 +68,12 @@ pub enum EventFilterType {
     /// File was deleted
     Delete,
     /// Only create the watch if the path referes
-    /// to a directory. May not be used with [`FileOnly`]
+    /// to a directory. Behavior when used with `FileOnly`
+    /// is undefined.
     DirOnly,
     /// Only create the watch if the path referes
-    /// to a file. May not be used with [`DirOnly`]
+    /// to a file. Behavior when used with with `DirOnly`
+    /// is undefined.
     FileOnly,
 }
 
