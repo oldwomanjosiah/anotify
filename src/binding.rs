@@ -27,6 +27,7 @@ impl BindingEventType {
     }
 }
 
+/// Events produced by a platform binding to be dispatched by aNotify
 #[derive(Debug)]
 pub struct BindingEvent<I> {
     pub wd: I,
@@ -41,6 +42,10 @@ impl<I> BindingEvent<I> {
     }
 }
 
+/// Platform Binding Interface
+///
+/// Primary implementations:
+/// - [`InotifyBinding`][`crate::inotify::InotifyBinding`]
 pub trait Binding {
     type Identifier: PartialEq + PartialOrd + Hash + Copy + 'static;
 
@@ -71,6 +76,7 @@ pub trait Binding {
     where
         Self: Sized;
 
+    /// Asynchronously get the next set of events.
     fn events(&mut self) -> Next<'_, Self>
     where
         Self: Sized,
