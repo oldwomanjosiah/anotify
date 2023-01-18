@@ -21,7 +21,7 @@ default = [ "tracing" ]
 tracing = [ "tokio/tracing", "tracing-impl" ]
 
 [dependencies]
-nix = "0.25"
+nix = "0.26"
 thiserror = "1"
 tokio-stream = "0.1"
 cfg-if = "1.0.0"
